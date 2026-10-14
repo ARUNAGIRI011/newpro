@@ -327,8 +327,9 @@ func cloneVSphereTemplate(ctx context.Context, req vmCreateRequest) (vmRecord, e
 	if err != nil { return vmRecord{}, err }
 	pool, err := f.DefaultResourcePool(ctx)
 	if err != nil { return vmRecord{}, err }
+	poolRef := pool.Reference()
 	spec := types.VirtualMachineCloneSpec{
-		Location: types.VirtualMachineRelocateSpec{Pool: pool.Reference()},
+		Location: types.VirtualMachineRelocateSpec{Pool: &poolRef},
 		PowerOn: false,
 		Template: false,
 		Config: &types.VirtualMachineConfigSpec{NumCPUs: int32(req.CPUs), MemoryMB: int64(req.MemoryMiB), Annotation: managedVMAnnotation},
@@ -366,7 +367,7 @@ func runHyperVPS(ctx context.Context, script string) (string, error) {
 	encoded := base64.StdEncoding.EncodeToString(utf16LE(script))
 	command := "powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy RemoteSigned -EncodedCommand " + encoded
 	var stdout, stderr bytes.Buffer
-	if err := client.RunWithContext(ctx, command, &stdout, &stderr); err != nil {
+	if _, err := client.RunWithContext(ctx, command, &stdout, &stderr); err != nil {
 		return "", fmt.Errorf("WinRM command failed: %w: %s", err, strings.TrimSpace(stderr.String()))
 	}
 	result := strings.TrimSpace(stdout.String())
