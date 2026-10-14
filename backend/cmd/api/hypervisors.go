@@ -421,17 +421,17 @@ func createHyperVFromVHDX(ctx context.Context, req vmCreateRequest) (vmRecord, e
 func powerHyperV(ctx context.Context, id, state string) error {
 	action := "Start-VM"
 	if state == "off" { action = "Stop-VM -TurnOff" }
-	_, err := runHyperVPS(ctx, "$ErrorActionPreference='Stop'; "+action+" -VM (Get-VM -Id '"+id+"') -Confirm:$false | Out-Null")
+	_, err := runHyperVPS(ctx, "$ErrorActionPreference='Stop'; $vm=Get-VM -Id '"+id+"'; if ($vm.Name -notlike 'isa-*') { throw 'VM is not managed by this agent' }; "+action+" -VM $vm -Confirm:$false | Out-Null")
 	return err
 }
 
 func snapshotHyperV(ctx context.Context, id, name string) error {
-	_, err := runHyperVPS(ctx, "$ErrorActionPreference='Stop'; Checkpoint-VM -VM (Get-VM -Id '"+id+"') -SnapshotName '"+name+"'")
+	_, err := runHyperVPS(ctx, "$ErrorActionPreference='Stop'; $vm=Get-VM -Id '"+id+"'; if ($vm.Name -notlike 'isa-*') { throw 'VM is not managed by this agent' }; Checkpoint-VM -VM $vm -SnapshotName '"+name+"'")
 	return err
 }
 
 func removeHyperV(ctx context.Context, id string) error {
-	_, err := runHyperVPS(ctx, "$ErrorActionPreference='Stop'; $vm=Get-VM -Id '"+id+"'; if ($vm.State -ne 'Off') { Stop-VM -VM $vm -TurnOff -Confirm:$false }; Remove-VM -VM $vm -Force -Confirm:$false")
+	_, err := runHyperVPS(ctx, "$ErrorActionPreference='Stop'; $vm=Get-VM -Id '"+id+"'; if ($vm.Name -notlike 'isa-*') { throw 'VM is not managed by this agent' }; if ($vm.State -ne 'Off') { Stop-VM -VM $vm -TurnOff -Confirm:$false }; Remove-VM -VM $vm -Force -Confirm:$false")
 	return err
 }
 
