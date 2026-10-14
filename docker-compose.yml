@@ -55,6 +55,7 @@ services:
     environment:
       SANDBOX_API_URL: "http://sandbox-api:8080"
       SANDBOX_API_TOKEN: "$SANDBOX_API_TOKEN"
+      SANDBOX_CHANGE_APPROVAL_TOKEN: "$SANDBOX_CHANGE_APPROVAL_TOKEN"
       GOOGLE_API_KEY: "$GOOGLE_API_KEY"
       GEMINI_MODEL: "$GEMINI_MODEL"
     ports:
