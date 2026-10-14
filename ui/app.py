@@ -15,7 +15,7 @@ API_TOKEN = os.getenv("SANDBOX_API_TOKEN", "").strip()
 API_HEADERS = {"Authorization": f"Bearer {API_TOKEN}"} if API_TOKEN else {}
 st.set_page_config(page_title="Infrastructure Sandbox Agent", page_icon="🧪", layout="wide")
 st.title("Infrastructure Sandbox Agent")
-st.caption("Describe a lab, review the plan, then explicitly approve execution.")
+st.caption("Describe a lab, review the plan, then explicitly approve execution. The diagnostic console runs only fixed, allowlisted commands—not an arbitrary shell.")
 with st.sidebar:
     st.subheader("Execution mode")
     st.radio("Mode", ["Manual approval", "Assisted (plan then approve)"])
@@ -81,5 +81,13 @@ try:
             if c3.button("Stop",key="stop-"+sid):
                 st.write(requests.post(f"{API}/api/sandboxes/{sid}/stop",headers=API_HEADERS,timeout=30).json())
             if c3.button("Delete",key="delete-"+sid):
-                st.write(requests.delete(f"{API}/api/sandboxes/{sid}",headers=API_HEADERS,timeout=30).json())
+                rr=requests.delete(f"{API}/api/sandboxes/{sid}",headers=API_HEADERS,timeout=30)
+                st.write(rr.json())
+            diag=st.selectbox("Safe diagnostic command",["identity","os-release","kernel","filesystem","working-directory","root-files"],key="diag-"+sid)
+            if st.button("Run diagnostic",key="run-diag-"+sid):
+                rr=requests.post(f"{API}/api/sandboxes/{sid}/diagnostics",json={"command":diag},headers=API_HEADERS,timeout=20)
+                if rr.ok:
+                    st.code(rr.json().get("output",""),language="text")
+                else:
+                    st.error(f"Diagnostic failed ({rr.status_code}): {rr.text}")
 except Exception as e: st.caption(f"Inventory unavailable: {e}")
