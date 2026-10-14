@@ -17,12 +17,33 @@ This branch provisions isolated Linux containers for functional testing. It does
 - Go 1.26.5+ and Python 3.11+ for native development
 - Optional Gemini API key from Google AI Studio
 
-## Run locally
-1. Copy .env.example to .env (do not commit .env).
-2. Generate a token using: python -c "import secrets; print(secrets.token_urlsafe(48))"; place it in SANDBOX_API_TOKEN.
-3. Optionally set GOOGLE_API_KEY.
-4. Run docker compose up --build.
-5. Open http://localhost:8501. Both published services bind to loopback.
+## Run locally on the Windows VM
+For the existing Windows lab host, use native Go + Streamlit with Docker Desktop running. This avoids assuming that the Linux Docker socket mount used by the Compose stack is available through Docker Desktop on Windows.
+
+1. Generate a token in PowerShell: `py -c "import secrets; print(secrets.token_urlsafe(48))"`.
+2. Copy the generated token. In Terminal 1, set it and start the API:
+   ```powershell
+   $env:SANDBOX_API_TOKEN = "PASTE_GENERATED_TOKEN"
+   $env:SANDBOX_LISTEN_ADDR = "127.0.0.1:8080"
+   cd backend
+   go run ./cmd/api
+   ```
+3. In Terminal 2, set the same token and start Streamlit:
+   ```powershell
+   $env:SANDBOX_API_TOKEN = "PASTE_GENERATED_TOKEN"
+   $env:SANDBOX_API_URL = "http://127.0.0.1:8080"
+   # Optional: set this only if Gemini planning is wanted
+   $env:GOOGLE_API_KEY = "YOUR_GEMINI_API_KEY"
+   cd ui
+   py -m venv .venv
+   .venv\Scripts\Activate.ps1
+   pip install -r requirements.txt
+   streamlit run app.py
+   ```
+4. Open http://localhost:8501. Keep both processes bound to loopback.
+
+## Compose deployment
+On a Linux Docker Engine host, copy .env.example to .env, generate and set SANDBOX_API_TOKEN, optionally set GOOGLE_API_KEY, then run docker compose up --build. The socket-proxy mount and permissions must be validated for the target host; do not assume the Linux socket mount works on Windows Docker Desktop.
 
 The API fails closed when the token is missing or shorter than 32 characters. Never expose the API directly to the internet. The Docker socket proxy is still powerful; run this stack on a dedicated disposable worker host, not a production workload host.
 
