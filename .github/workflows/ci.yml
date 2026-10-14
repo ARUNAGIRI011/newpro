@@ -1,0 +1,44 @@
+name: starter-validation
+on:
+  push:
+    branches: [infra-sandbox-agent]
+  pull_request:
+    branches: [main]
+jobs:
+  go-api:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.25.x"
+      - name: Build API
+        working-directory: backend
+        run: go build ./cmd/api
+      - name: Test API packages
+        working-directory: backend
+        run: go test ./...
+  python-ui:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install UI dependencies
+        working-directory: ui
+        run: pip install -r requirements.txt
+      - name: Compile Python
+        run: python -m py_compile ui/app.py
+  adk-go-agent:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.25.x"
+      - name: Resolve dependencies and build ADK agent
+        working-directory: adk-go-agent
+        run: |
+          go mod tidy
+          go build ./...
