@@ -54,7 +54,7 @@ func (a *API) list(w http.ResponseWriter,r *http.Request){
  for _,line:=range strings.Split(strings.TrimSpace(string(out)),"\n"){if line==""{continue};p:=strings.SplitN(line,"|",4);if len(p)==4{rows=append(rows,map[string]string{"id":p[0],"name":p[1],"image":p[2],"status":p[3],"provider":"docker-container"})}}
  writeJSON(w,200,rows)
 }
-func (a *API) stop(w http.ResponseWriter,r *http.Request){id:=r.PathValue("id");if !validID(id){writeError(w,400,"invalid ID");return};out,e:=docker(r.Context(),"inspect","--format","{{ index .Config.Labels \\"infra-sandbox-agent.managed\\" }}",id);if e!=nil||strings.TrimSpace(string(out))!="true"{writeError(w,404,"managed sandbox not found");return};if _,e=docker(r.Context(),"stop","--time","10",id);e!=nil{writeError(w,502,e.Error());return};writeJSON(w,200,map[string]string{"id":id,"status":"stopped"})}
+func (a *API) stop(w http.ResponseWriter,r *http.Request){id:=r.PathValue("id");if !validID(id){writeError(w,400,"invalid ID");return};out,e:=docker(r.Context(),"inspect","--format","{{ index .Config.Labels \"infra-sandbox-agent.managed\" }}",id);if e!=nil||strings.TrimSpace(string(out))!="true"{writeError(w,404,"managed sandbox not found");return};if _,e=docker(r.Context(),"stop","--time","10",id);e!=nil{writeError(w,502,e.Error());return};writeJSON(w,200,map[string]string{"id":id,"status":"stopped"})}
 func (a *API) remove(w http.ResponseWriter,r *http.Request){
  id:=r.PathValue("id");if !validID(id){writeError(w,400,"invalid ID");return}
  out,e:=docker(r.Context(),"inspect","--format","{{ index .Config.Labels \"infra-sandbox-agent.managed\" }}",id)
