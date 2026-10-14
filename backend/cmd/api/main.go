@@ -25,6 +25,7 @@ type Profile struct {
  MemoryMiB int `json:"memory_mib"`
 }
 type API struct { token string }
+type DiagnosticRequest struct { Command string ` + "`" + `json:"command"` + "`" + ` }
 var profiles=map[string]string{"ubuntu-24.04":"ubuntu:24.04","debian-12":"debian:12-slim","alpine-3.22":"alpine:3.22"}
 
 func main(){
@@ -39,6 +40,7 @@ func main(){
  mux.Handle("GET /api/sandboxes",a.auth(http.HandlerFunc(a.list)))
  mux.Handle("POST /api/sandboxes",a.auth(http.HandlerFunc(a.create)))
  mux.Handle("POST /api/sandboxes/{id}/stop",a.auth(http.HandlerFunc(a.stop)))
+ mux.Handle("POST /api/sandboxes/{id}/diagnostics",a.auth(http.HandlerFunc(a.diagnostics)))
  mux.Handle("DELETE /api/sandboxes/{id}",a.auth(http.HandlerFunc(a.remove)))
  s:=&http.Server{Addr:addr,Handler:securityHeaders(mux),ReadHeaderTimeout:5*time.Second,ReadTimeout:15*time.Second,WriteTimeout:100*time.Second,IdleTimeout:60*time.Second,MaxHeaderBytes:1<<20}
  slog.Info("sandbox API starting","address",addr)
@@ -70,6 +72,26 @@ func(a *API)create(w http.ResponseWriter,r *http.Request){
 func(a *API)list(w http.ResponseWriter,r *http.Request){out,e:=docker(r.Context(),"ps","-a","--filter","label="+managedLabel+"=true","--format","{{.ID}}|{{.Names}}|{{.Image}}|{{.Status}}");if e!=nil{writeError(w,502,"container inventory unavailable");return};rows:=make([]map[string]string,0);for _,line:=range strings.Split(strings.TrimSpace(string(out)),"\n"){if line==""{continue};p:=strings.SplitN(line,"|",4);if len(p)==4{rows=append(rows,map[string]string{"id":p[0],"name":p[1],"image":p[2],"status":p[3],"provider":"docker-container","fidelity":"container-functional"})}};writeJSON(w,200,rows)}
 func managed(ctx context.Context,id string)bool{out,e:=docker(ctx,"inspect","--format","{{.Config.Labels.infra-sandbox-agent.managed}}",id);return e==nil&&strings.TrimSpace(string(out))=="true"}
 func(a *API)stop(w http.ResponseWriter,r *http.Request){id:=r.PathValue("id");if !validID(id)||!managed(r.Context(),id){writeError(w,404,"managed sandbox not found");return};if _,e:=docker(r.Context(),"stop","--time","10",id);e!=nil{writeError(w,502,"sandbox stop failed");return};slog.Info("sandbox stopped","id",id);writeJSON(w,200,map[string]string{"id":id,"status":"stopped"})}
+func(a *API)diagnostics(w http.ResponseWriter,r *http.Request){
+ id:=r.PathValue("id")
+ if !validID(id)||!managed(r.Context(),id){writeError(w,404,"managed sandbox not found");return}
+ var req DiagnosticRequest
+ d:=json.NewDecoder(http.MaxBytesReader(w,r.Body,2<<10));d.DisallowUnknownFields()
+ if err:=d.Decode(&req);err!=nil{writeError(w,400,"invalid JSON request");return}
+ commands:=map[string][]string{
+  "identity":{"id"},
+  "os-release":{"cat","/etc/os-release"},
+  "kernel":{"uname","-a"},
+  "filesystem":{"df","-h"},
+  "working-directory":{"pwd"},
+  "root-files":{"ls","-la","/"},
+ }
+ args,ok:=commands[req.Command];if !ok{writeError(w,400,"diagnostic command is not allowlisted");return}
+ out,err:=docker(r.Context(),append([]string{"exec",id},args...)...)
+ if err!=nil{slog.Warn("sandbox diagnostic failed","id",id,"command",req.Command,"error",err);writeError(w,502,"diagnostic failed; command may not exist in this image");return}
+ result:=strings.TrimSpace(string(out));if len(result)>16<<10{result=result[:16<<10]+"\\n[output truncated]"}
+ writeJSON(w,200,map[string]string{"id":id,"command":req.Command,"output":result})
+}
 func(a *API)remove(w http.ResponseWriter,r *http.Request){id:=r.PathValue("id");if !validID(id)||!managed(r.Context(),id){writeError(w,404,"managed sandbox not found");return};if _,e:=docker(r.Context(),"rm","-f",id);e!=nil{writeError(w,502,"sandbox removal failed");return};slog.Info("sandbox removed","id",id);writeJSON(w,200,map[string]string{"id":id,"status":"removed"})}
 func validName(s string)bool{if len(s)<1||len(s)>48||s[0]=='-'||s[len(s)-1]=='-'{return false};for _,r:=range s{if !(r>='a'&&r<='z')&&!(r>='0'&&r<='9')&&r!='-'{return false}};return true}
 func validID(s string)bool{if s==""||len(s)>64{return false};for _,r:=range s{if !(r>='a'&&r<='z')&&!(r>='A'&&r<='Z')&&!(r>='0'&&r<='9')&&r!='-'&&r!='_'{return false}};return true}
