@@ -8,8 +8,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
-	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -23,6 +21,7 @@ import (
 	"github.com/vmware/govmomi"
 	"github.com/vmware/govmomi/find"
 	"github.com/vmware/govmomi/object"
+	"github.com/vmware/govmomi/vim25/mo"
 	"github.com/vmware/govmomi/vim25/types"
 )
 
@@ -249,6 +248,8 @@ func vsphereClient(ctx context.Context) (*govmomi.Client, error) {
 	return c, nil
 }
 
+func guestOS(g *types.GuestInfo) string { if g == nil { return "" }; return g.GuestFullName }
+
 func listVSphere(ctx context.Context) ([]vmRecord, error) {
 	c, err := vsphereClient(ctx)
 	if err != nil { return nil, err }
@@ -258,21 +259,13 @@ func listVSphere(ctx context.Context) ([]vmRecord, error) {
 	if err != nil { return nil, err }
 	out := make([]vmRecord, 0, len(vms))
 	for _, vm := range vms {
-		var p moVirtualMachine
+		var p mo.VirtualMachine
 		if err := vm.Properties(ctx, vm.Reference(), []string{"name", "runtime.powerState", "config.instanceUuid", "guest.guestFullName"}, &p); err != nil {
 			continue
 		}
-		out = append(out, vmRecord{ID: vm.Reference().Value, Name: p.Name, State: string(p.Runtime.PowerState), GuestOS: p.Guest.GuestFullName, Provider: "vsphere"})
+		out = append(out, vmRecord{ID: vm.Reference().Value, Name: p.Name, State: string(p.Runtime.PowerState), GuestOS: guestOS(p.Guest), Provider: "vsphere"})
 	}
 	return out, nil
-}
-
-// moVirtualMachine is intentionally limited to the properties the inventory endpoint exposes.
-type moVirtualMachine struct {
-	Name string `json:"name"`
-	Runtime struct { PowerState types.VirtualMachinePowerState `json:"powerState"` } `json:"runtime"`
-	Guest *types.GuestInfo `json:"guest"`
-	Config *types.VirtualMachineConfigInfo `json:"config"`
 }
 
 func findVSphereVM(ctx context.Context, id string) (*govmomi.Client, *object.VirtualMachine, error) {
@@ -353,9 +346,11 @@ func hyperVClient() (*winrm.Client, error) {
 		n, err := strconv.Atoi(p); if err != nil || n < 1 || n > 65535 { return nil, errors.New("invalid HYPERV_WINRM_PORT") }; port = n
 	}
 	endpoint := winrm.NewEndpoint(host, port, true, false, nil, nil, nil, 30*time.Second)
+	encryption, err := winrm.NewEncryption("ntlm")
+	if err != nil { return nil, err }
 	params := *winrm.DefaultParameters
 	// NTLM is encrypted at the WinRM message layer; TLS certificate verification remains enabled.
-	params.TransportDecorator = func() winrm.Transporter { return winrm.NewEncryption("ntlm") }
+	params.TransportDecorator = func() winrm.Transporter { return encryption }
 	return winrm.NewClientWithParameters(endpoint, user, password, &params)
 }
 
@@ -446,5 +441,3 @@ func boundedProviderOutput(s string) string {
 	return strings.TrimSpace(s)
 }
 
-var _ io.Writer = (*bytes.Buffer)(nil)
-var _ net.Addr
