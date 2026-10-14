@@ -272,10 +272,14 @@ func findVSphereVM(ctx context.Context, id string) (*govmomi.Client, *object.Vir
 	c, err := vsphereClient(ctx)
 	if err != nil { return nil, nil, err }
 	vm := object.NewVirtualMachine(c.Client, types.ManagedObjectReference{Type: "VirtualMachine", Value: id})
-	var p moVirtualMachine
+	var p mo.VirtualMachine
 	if err := vm.Properties(ctx, vm.Reference(), []string{"name", "runtime.powerState"}, &p); err != nil {
 		_ = c.Logout(ctx)
 		return nil, nil, err
+	}
+	if !strings.HasPrefix(p.Name, "isa-") {
+		_ = c.Logout(ctx)
+		return nil, nil, errors.New("refusing operation on a VM not managed by this agent (name must start with isa-)")
 	}
 	return c, vm, nil
 }
