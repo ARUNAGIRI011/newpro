@@ -25,7 +25,7 @@ type Profile struct {
  MemoryMiB int `json:"memory_mib"`
 }
 type API struct { token string }
-type DiagnosticRequest struct { Command string ` + "`" + `json:"command"` + "`" + ` }
+type DiagnosticRequest struct { Command string `json:"command"` }
 var profiles=map[string]string{"ubuntu-24.04":"ubuntu:24.04","debian-12":"debian:12-slim","alpine-3.22":"alpine:3.22"}
 
 func main(){
