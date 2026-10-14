@@ -1,31 +1,42 @@
 # Infrastructure Sandbox Agent
 
-MVP: Streamlit chat UI, Python Gemini planner, Go REST control plane, and Docker container sandboxes.
+A controlled lab MVP using Streamlit, Python Gemini planning, a Go REST API and Docker containers.
 
-## Scope boundary
-This MVP provisions isolated Linux containers for functional testing. It does NOT yet provision VMware or Hyper-V virtual machines and does not perform cross-hypervisor migration. Docker containers cannot validate VM firmware, bootloader/initramfs, LVM boot disks, hypervisor drivers or migration fidelity.
+## Current implementation
+- Natural-language plan generation with Gemini or an offline fallback.
+- Explicit user approval before creating a sandbox.
+- Go API with bearer-token authentication and an allowlisted Linux profile catalogue.
+- Managed sandbox inventory, stop/delete operations and a restricted diagnostic console.
+- Docker API routed through a private socket proxy in Compose.
+
+## Important scope boundary
+This branch provisions isolated Linux containers for functional testing. It does not yet provision VMware/Hyper-V/QEMU virtual machines or perform cross-hypervisor migration. Container tests cannot validate guest kernels, bootloaders, initramfs, firmware, disk controllers or migration fidelity.
 
 ## Requirements
-- Go 1.25+
-- Python 3.11+
-- Docker Desktop with Linux containers enabled
+- Docker Desktop / Docker Engine with Compose
+- Go 1.25+ and Python 3.11+ for native development
 - Optional Gemini API key from Google AI Studio
 
-## Run on Windows PowerShell
-1. Copy .env.example to .env and set GOOGLE_API_KEY if using Gemini.
-2. Terminal 1: cd backend; go run ./cmd/api
-3. Terminal 2: cd ui; py -m venv .venv; .venv\Scripts\Activate.ps1; pip install -r requirements.txt; streamlit run app.py
-4. Open http://localhost:8501.
+## Run locally
+1. Copy .env.example to .env (do not commit .env).
+2. Generate a token using: python -c "import secrets; print(secrets.token_urlsafe(48))"; place it in SANDBOX_API_TOKEN.
+3. Optionally set GOOGLE_API_KEY.
+4. Run docker compose up --build.
+5. Open http://localhost:8501. Both published services bind to loopback.
 
-The Go API uses fixed Docker arguments, allowlisted OS profiles, CPU/RAM limits and a network-disabled container. Do not expose it to the internet. Mounting the Docker socket grants substantial host control.
+The API fails closed when the token is missing or shorter than 32 characters. Never expose the API directly to the internet. The Docker socket proxy is still powerful; run this stack on a dedicated disposable worker host, not a production workload host.
 
 ## API
-- GET /health
+- GET /health/live (liveness)
+- GET /health/ready (authenticated readiness)
 - GET /api/profiles
 - GET /api/sandboxes
 - POST /api/sandboxes
 - POST /api/sandboxes/{id}/stop
+- POST /api/sandboxes/{id}/diagnostics
 - DELETE /api/sandboxes/{id}
 
-## Production roadmap
-Add Google ADK Go workflow orchestration, authenticated vSphere and Hyper-V providers, compatibility catalogs, durable state, RBAC, quotas, TLS, audit evidence, approval gates and real end-to-end migration tests. Do not treat a successful container test as proof of VM migration compatibility. Gemini quotas/model access vary by project; verify current AI Studio limits.
+All API endpoints except liveness require Authorization: Bearer <SANDBOX_API_TOKEN>.
+
+## Production blockers
+Identity-provider login, RBAC, per-tenant isolation/quotas, TLS ingress, durable audit events, idempotency, image digest pinning, SBOM/scanning, VM console/terminal sessions, and real VMware/Hyper-V/QEMU provider adapters remain unimplemented. See docs/production-readiness.md.
