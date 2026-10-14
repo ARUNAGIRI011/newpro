@@ -25,6 +25,8 @@ import (
 	"github.com/vmware/govmomi/vim25/types"
 )
 
+const managedVMAnnotation = "Managed by Infrastructure Sandbox Agent"
+
 type hypervisorAPI struct{}
 
 type vmCreateRequest struct {
@@ -273,13 +275,13 @@ func findVSphereVM(ctx context.Context, id string) (*govmomi.Client, *object.Vir
 	if err != nil { return nil, nil, err }
 	vm := object.NewVirtualMachine(c.Client, types.ManagedObjectReference{Type: "VirtualMachine", Value: id})
 	var p mo.VirtualMachine
-	if err := vm.Properties(ctx, vm.Reference(), []string{"name", "runtime.powerState"}, &p); err != nil {
+	if err := vm.Properties(ctx, vm.Reference(), []string{"name", "runtime.powerState", "config.annotation"}, &p); err != nil {
 		_ = c.Logout(ctx)
 		return nil, nil, err
 	}
-	if !strings.HasPrefix(p.Name, "isa-") {
+	if !strings.HasPrefix(p.Name, "isa-") || p.Config == nil || p.Config.Annotation != managedVMAnnotation {
 		_ = c.Logout(ctx)
-		return nil, nil, errors.New("refusing operation on a VM not managed by this agent (name must start with isa-)")
+		return nil, nil, errors.New("refusing operation on a VM without the agent ownership annotation")
 	}
 	return c, vm, nil
 }
@@ -329,7 +331,7 @@ func cloneVSphereTemplate(ctx context.Context, req vmCreateRequest) (vmRecord, e
 		Location: types.VirtualMachineRelocateSpec{Pool: pool.Reference()},
 		PowerOn: false,
 		Template: false,
-		Config: &types.VirtualMachineConfigSpec{NumCPUs: int32(req.CPUs), MemoryMB: int64(req.MemoryMiB)},
+		Config: &types.VirtualMachineConfigSpec{NumCPUs: int32(req.CPUs), MemoryMB: int64(req.MemoryMiB), Annotation: managedVMAnnotation},
 	}
 	task, err := template.Clone(ctx, folder, req.Name, spec)
 	if err != nil { return vmRecord{}, err }
@@ -413,6 +415,7 @@ func createHyperVFromVHDX(ctx context.Context, req vmCreateRequest) (vmRecord, e
 		"$dir=Join-Path $root $name; New-Item -ItemType Directory -Path $dir -Force | Out-Null; " +
 		"$disk=Join-Path $dir ($name + '.vhdx'); Copy-Item -LiteralPath $source -Destination $disk -ErrorAction Stop; " +
 		"$vm=New-VM -Name $name -Path $dir -MemoryStartupBytes (" + strconv.Itoa(req.MemoryMiB) + "MB) -Generation 2 -VHDPath $disk" + switchLine + "; " +
+		"Set-VM -VM $vm -Notes '" + managedVMAnnotation + "' | Out-Null; " +
 		"Set-VMProcessor -VMName $name -Count " + strconv.Itoa(req.CPUs) + "; " +
 		"[pscustomobject]@{id=$vm.Id.Guid;Name=$vm.Name;State=$vm.State.ToString()} | ConvertTo-Json -Compress"
 	out, err := runHyperVPS(ctx, script)
@@ -425,7 +428,7 @@ func createHyperVFromVHDX(ctx context.Context, req vmCreateRequest) (vmRecord, e
 func powerHyperV(ctx context.Context, id, state string) error {
 	action := "Start-VM"
 	if state == "off" { action = "Stop-VM -TurnOff" }
-	_, err := runHyperVPS(ctx, "$ErrorActionPreference='Stop'; $vm=Get-VM -Id '"+id+"'; if ($vm.Name -notlike 'isa-*') { throw 'VM is not managed by this agent' }; "+action+" -VM $vm -Confirm:$false | Out-Null")
+	_, err := runHyperVPS(ctx, "$ErrorActionPreference='Stop'; $vm=Get-VM -Id '"+id+"'; if ($vm.Name -notlike 'isa-*' -or $vm.Notes -ne '" + managedVMAnnotation + "') { throw 'VM is not managed by this agent' }; "+action+" -VM $vm -Confirm:$false | Out-Null")
 	return err
 }
 
@@ -435,7 +438,14 @@ func snapshotHyperV(ctx context.Context, id, name string) error {
 }
 
 func removeHyperV(ctx context.Context, id string) error {
-	_, err := runHyperVPS(ctx, "$ErrorActionPreference='Stop'; $vm=Get-VM -Id '"+id+"'; if ($vm.Name -notlike 'isa-*') { throw 'VM is not managed by this agent' }; if ($vm.State -ne 'Off') { Stop-VM -VM $vm -TurnOff -Confirm:$false }; Remove-VM -VM $vm -Force -Confirm:$false")
+	root := strings.TrimSpace(os.Getenv("HYPERV_VM_ROOT"))
+	if root == "" || strings.ContainsAny(root, "'\r\n") {
+		return errors.New("valid HYPERV_VM_ROOT is required for safe VM cleanup")
+	}
+	script := "$ErrorActionPreference='Stop'; $vm=Get-VM -Id '" + id + "'; if ($vm.Name -notlike 'isa-*' -or $vm.Notes -ne '" + managedVMAnnotation + "') { throw 'VM is not managed by this agent' }; " +
+		"$dir=Join-Path '" + root + "' $vm.Name; if ($vm.State -ne 'Off') { Stop-VM -VM $vm -TurnOff -Confirm:$false }; Remove-VM -VM $vm -Force -Confirm:$false; " +
+		"if (Test-Path -LiteralPath $dir) { Remove-Item -LiteralPath $dir -Recurse -Force }"
+	_, err := runHyperVPS(ctx, script)
 	return err
 }
 
