@@ -1,0 +1,44 @@
+apiVersion: sandbox.example.io/v1
+kind: MigrationWorkbook
+metadata:
+  name: ubuntu-vmware-to-hyperv
+  version: "0.1.0"
+spec:
+  fidelity: hypervisor-vm
+  source:
+    hypervisor: vmware-vsphere
+    os:
+      distribution: ubuntu
+      release: "24.04"
+    disks:
+      - role: os
+        filesystem: ext4
+        layout: lvm
+      - role: data
+        capacityGiB: 50
+        filesystem: ext4
+        mountPoint: /data
+    services: [nginx]
+  target:
+    hypervisor: hyper-v
+    networkMapping: explicit
+  steps:
+    - id: discover
+      action: source.discover
+    - id: compatibility
+      action: compatibility.assess
+      dependsOn: [discover]
+    - id: provision
+      action: target.provision
+      approvalRequired: true
+      dependsOn: [compatibility]
+    - id: migrate
+      action: migration.execute
+      approvalRequired: true
+      dependsOn: [provision]
+    - id: verify
+      action: migration.verify
+      dependsOn: [migrate]
+  onFailure:
+    preserveArtifacts: true
+    preserveTargetVm: true

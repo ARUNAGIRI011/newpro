@@ -1,0 +1,76 @@
+services:
+  docker-socket-proxy:
+    image: tecnativa/docker-socket-proxy:0.3.0
+    environment:
+      CONTAINERS: "1"
+      IMAGES: "1"
+      INFO: "1"
+      PING: "1"
+      VERSION: "1"
+      POST: "1"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks: [runtime]
+    restart: unless-stopped
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+
+  sandbox-api:
+    build:
+      context: ./backend
+    environment:
+      SANDBOX_LISTEN_ADDR: "0.0.0.0:8080"
+      SANDBOX_API_TOKEN: "$SANDBOX_API_TOKEN"
+      DOCKER_HOST: "tcp://docker-socket-proxy:2375"
+      SANDBOX_CHANGE_APPROVAL_TOKEN: "$SANDBOX_CHANGE_APPROVAL_TOKEN"
+      VSPHERE_URL: "$VSPHERE_URL"
+      VSPHERE_USERNAME: "$VSPHERE_USERNAME"
+      VSPHERE_PASSWORD: "$VSPHERE_PASSWORD"
+      VSPHERE_TEMPLATE_PATH: "$VSPHERE_TEMPLATE_PATH"
+      VSPHERE_INSECURE_SKIP_VERIFY: "$VSPHERE_INSECURE_SKIP_VERIFY"
+      HYPERV_WINRM_HOST: "$HYPERV_WINRM_HOST"
+      HYPERV_WINRM_PORT: "$HYPERV_WINRM_PORT"
+      HYPERV_WINRM_USERNAME: "$HYPERV_WINRM_USERNAME"
+      HYPERV_WINRM_PASSWORD: "$HYPERV_WINRM_PASSWORD"
+      HYPERV_TEMPLATE_VHDX: "$HYPERV_TEMPLATE_VHDX"
+      HYPERV_VM_ROOT: "$HYPERV_VM_ROOT"
+      HYPERV_SWITCH_NAME: "$HYPERV_SWITCH_NAME"
+    ports:
+      - "127.0.0.1:8080:8080"
+    networks: [app, runtime]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "-", "--header", "Authorization: Bearer $SANDBOX_API_TOKEN", "http://127.0.0.1:8080/health/ready"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    security_opt:
+      - no-new-privileges:true
+
+  streamlit-ui:
+    build:
+      context: ./ui
+    environment:
+      SANDBOX_API_URL: "http://sandbox-api:8080"
+      SANDBOX_API_TOKEN: "$SANDBOX_API_TOKEN"
+      SANDBOX_CHANGE_APPROVAL_TOKEN: "$SANDBOX_CHANGE_APPROVAL_TOKEN"
+      GOOGLE_API_KEY: "$GOOGLE_API_KEY"
+      GEMINI_MODEL: "$GEMINI_MODEL"
+    ports:
+      - "127.0.0.1:8501:8501"
+    networks: [app]
+    depends_on:
+      sandbox-api:
+        condition: service_healthy
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+
+networks:
+  app:
+    driver: bridge
+  runtime:
+    driver: bridge
+    internal: true
