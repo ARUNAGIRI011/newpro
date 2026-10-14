@@ -14,17 +14,17 @@
 2. Add TLS ingress, identity-provider login, per-user RBAC, tenant isolation, short-lived credentials and server-side approval records. The current shared API token is a bootstrap control, not multi-user identity.
 3. Add durable state, immutable audit events, idempotency, per-tenant quotas, concurrency controls, retention/cleanup policies, metrics, tracing and alerting.
 4. Pin images by verified digest, scan image/dependency artifacts, generate SBOMs, and keep a tested OS profile catalogue.
-5. Implement and integration-test real VMware vSphere, Hyper-V and QEMU/KVM adapters, credential vaulting and capability discovery. No VM provisioning or migration adapter is included yet.
-6. Implement real VM snapshots/restore, serial/VNC console or SSH access with per-lab credentials, evidence capture and cleanup. The diagnostic console is deliberately allowlisted.
-7. Run CI and live integration tests on the Windows host and real hypervisors. CI passing is necessary but not sufficient for production acceptance.
+5. vSphere and Hyper-V lifecycle adapters now exist in the orchestrator: vSphere clone/power/snapshot/delete via govmomi; Hyper-V create-from-VHDX/power/checkpoint/delete via WinRM HTTPS. Still add credential vaulting, capability discovery, managed-object inventory scoping, and live integration tests. QEMU/KVM adapter is not implemented.
+6. Hypervisor snapshots/checkpoints are implemented, but restore workflows, serial/VNC console or SSH access with per-lab credentials, evidence capture and cleanup remain incomplete. The diagnostic console is deliberately allowlisted.
+7. End-to-end cross-hypervisor migration is not implemented: VMware disk export, VMDK-to-VHDX conversion, guest boot repair, network remapping, rollback and migration evidence remain blockers. Run CI and live integration tests on the Windows host and real hypervisors. CI passing is necessary but not sufficient for production acceptance.
 
 ## Fidelity boundary
 Docker containers support userspace/package/API testing only. They are not bootable VMs and cannot validate kernels, initramfs, GRUB, firmware, disk controllers, guest tools, migration-agent installation, boot recovery or cross-hypervisor migration. Debian 8 is end-of-life: test only in a disconnected disposable VM with validated archived media; do not expose it to a network.
 
 ## Local deployment
 1. Copy .env.example to .env; keep .env untracked.
-2. Generate SANDBOX_API_TOKEN with: python -c "import secrets; print(secrets.token_urlsafe(48))"
-3. Set GOOGLE_API_KEY only if Gemini planning is wanted.
+2. Generate both SANDBOX_API_TOKEN and SANDBOX_CHANGE_APPROVAL_TOKEN with: python -c "import secrets; print(secrets.token_urlsafe(48))"
+3. Set GOOGLE_API_KEY only if Gemini planning is wanted. Configure the remote provider variables only for the hypervisors you will use.
 4. Run docker compose up --build.
 5. UI is bound to 127.0.0.1:8501; API to 127.0.0.1:8080. Do not publish these ports to the internet directly.
 
