@@ -1,0 +1,20 @@
+services:
+  sandbox-api:
+    build: ./backend
+    environment:
+      SANDBOX_LISTEN_ADDR: ":8080"
+    ports:
+      - "127.0.0.1:8080:8080"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    restart: unless-stopped
+  streamlit-ui:
+    build: ./ui
+    environment:
+      SANDBOX_API_URL: "http://sandbox-api:8080"
+      GOOGLE_API_KEY: ${GOOGLE_API_KEY:-}
+      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-2.5-flash}
+    ports:
+      - "127.0.0.1:8501:8501"
+    depends_on: [sandbox-api]
+    restart: unless-stopped
