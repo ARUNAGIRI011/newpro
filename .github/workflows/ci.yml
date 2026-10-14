@@ -42,3 +42,18 @@ jobs:
         run: |
           go mod tidy
           go build ./...
+
+  container-build:
+    runs-on: ubuntu-latest
+    env:
+      SANDBOX_API_TOKEN: "ci-only-token-not-for-deployment-0123456789abcdef"
+      GOOGLE_API_KEY: ""
+      GEMINI_MODEL: "gemini-2.5-flash"
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate Compose configuration
+        run: docker compose config --quiet
+      - name: Build API image
+        run: docker build --tag infra-sandbox-api:ci ./backend
+      - name: Build UI image
+        run: docker build --tag infra-sandbox-ui:ci ./ui
