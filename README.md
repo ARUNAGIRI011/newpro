@@ -14,7 +14,7 @@ This branch provisions isolated Linux containers for functional testing. It does
 
 ## Requirements
 - Docker Desktop / Docker Engine with Compose
-- Go 1.25+ and Python 3.11+ for native development
+- Go 1.26.5+ and Python 3.11+ for native development
 - Optional Gemini API key from Google AI Studio
 
 ## Run locally
