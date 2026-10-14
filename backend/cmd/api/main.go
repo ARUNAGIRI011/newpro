@@ -42,6 +42,7 @@ func main(){
  mux.Handle("POST /api/sandboxes/{id}/stop",a.auth(http.HandlerFunc(a.stop)))
  mux.Handle("POST /api/sandboxes/{id}/diagnostics",a.auth(http.HandlerFunc(a.diagnostics)))
  mux.Handle("DELETE /api/sandboxes/{id}",a.auth(http.HandlerFunc(a.remove)))
+ h:=&hypervisorAPI{};h.register(mux,a)
  s:=&http.Server{Addr:addr,Handler:securityHeaders(mux),ReadHeaderTimeout:5*time.Second,ReadTimeout:15*time.Second,WriteTimeout:100*time.Second,IdleTimeout:60*time.Second,MaxHeaderBytes:1<<20}
  slog.Info("sandbox API starting","address",addr)
  if err:=s.ListenAndServe();!errors.Is(err,http.ErrServerClosed){slog.Error("API stopped","error",err);os.Exit(1)}
