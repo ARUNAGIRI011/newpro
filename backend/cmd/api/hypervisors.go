@@ -98,8 +98,8 @@ func (h *hypervisorAPI) create(w http.ResponseWriter, r *http.Request) {
 		writeError(w, 400, "invalid JSON request")
 		return
 	}
-	if !safeVMName.MatchString(req.Name) {
-		writeError(w, 400, "name must be 1-63 characters using letters, digits, dot, underscore or hyphen")
+	if !safeVMName.MatchString(req.Name) || !strings.HasPrefix(req.Name, "isa-") {
+		writeError(w, 400, "name must start with isa- and use 1-63 letters, digits, dot, underscore or hyphen")
 		return
 	}
 	if req.CPUs == 0 {
