@@ -11,15 +11,17 @@ except ImportError:
 
 API = os.getenv("SANDBOX_API_URL", "http://localhost:8080")
 MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
+API_TOKEN = os.getenv("SANDBOX_API_TOKEN", "").strip()
+API_HEADERS = {"Authorization": f"Bearer {API_TOKEN}"} if API_TOKEN else {}
 st.set_page_config(page_title="Infrastructure Sandbox Agent", page_icon="🧪", layout="wide")
 st.title("Infrastructure Sandbox Agent")
 st.caption("Describe a lab, review the plan, then explicitly approve execution.")
 with st.sidebar:
     st.subheader("Execution mode")
     st.radio("Mode", ["Manual approval", "Assisted (plan then approve)"])
-    st.warning("This MVP creates Docker containers only. VMware/Hyper-V VM providers are not implemented.")
+    st.warning("Pilot scope: Docker containers only. VMware/Hyper-V VM providers and production identity/RBAC are not implemented.")
     try:
-        h=requests.get(f"{API}/health",timeout=3).json()
+        h=requests.get(f"{API}/health/ready",headers=API_HEADERS,timeout=3).json()
         st.success(f"API: {h.get('status')} · {h.get('provider')}")
     except Exception as e:
         st.error(f"API unavailable: {e}")
@@ -61,14 +63,14 @@ if plan:
     approve=st.checkbox("I reviewed this plan and approve creating the Docker container.")
     if st.button("Execute approved plan",disabled=not approve or bool(plan.get("needs_real_vm"))):
         try:
-            r=requests.post(f"{API}/api/sandboxes",json=plan["profile"],timeout=100)
+            r=requests.post(f"{API}/api/sandboxes",json=plan["profile"],headers=API_HEADERS,timeout=100)
             if r.ok: st.success("Sandbox created"); st.json(r.json())
             else: st.error(f"Provisioning failed ({r.status_code}): {r.text}")
         except Exception as e: st.error(str(e))
 st.divider()
 st.subheader("Managed sandboxes")
 try:
-    items=requests.get(f"{API}/api/sandboxes",timeout=10).json()
+    items=requests.get(f"{API}/api/sandboxes",headers=API_HEADERS,timeout=10).json()
     if not items: st.info("No managed sandboxes yet.")
     for item in items:
         with st.container(border=True):
@@ -77,7 +79,7 @@ try:
             c2.write(item.get("image","")); c2.caption(item.get("status",""))
             sid=item.get("id","")
             if c3.button("Stop",key="stop-"+sid):
-                st.write(requests.post(f"{API}/api/sandboxes/{sid}/stop",timeout=30).json())
+                st.write(requests.post(f"{API}/api/sandboxes/{sid}/stop",headers=API_HEADERS,timeout=30).json())
             if c3.button("Delete",key="delete-"+sid):
-                st.write(requests.delete(f"{API}/api/sandboxes/{sid}",timeout=30).json())
+                st.write(requests.delete(f"{API}/api/sandboxes/{sid}",headers=API_HEADERS,timeout=30).json())
 except Exception as e: st.caption(f"Inventory unavailable: {e}")
