@@ -70,7 +70,7 @@ func(a *API)create(w http.ResponseWriter,r *http.Request){
  writeJSON(w,201,map[string]any{"id":id,"name":p.Name,"image":image,"status":"running","created_at":time.Now().UTC(),"provider":"docker-container","fidelity":"container-functional"})
 }
 func(a *API)list(w http.ResponseWriter,r *http.Request){out,e:=docker(r.Context(),"ps","-a","--filter","label="+managedLabel+"=true","--format","{{.ID}}|{{.Names}}|{{.Image}}|{{.Status}}");if e!=nil{writeError(w,502,"container inventory unavailable");return};rows:=make([]map[string]string,0);for _,line:=range strings.Split(strings.TrimSpace(string(out)),"\n"){if line==""{continue};p:=strings.SplitN(line,"|",4);if len(p)==4{rows=append(rows,map[string]string{"id":p[0],"name":p[1],"image":p[2],"status":p[3],"provider":"docker-container","fidelity":"container-functional"})}};writeJSON(w,200,rows)}
-func managed(ctx context.Context,id string)bool{out,e:=docker(ctx,"inspect","--format","{{.Config.Labels.infra-sandbox-agent.managed}}",id);return e==nil&&strings.TrimSpace(string(out))=="true"}
+func managed(ctx context.Context,id string)bool{out,e:=docker(ctx,"inspect","--format","{{json .Config.Labels}}",id);if e!=nil{return false};labels:=map[string]string{};if json.Unmarshal(out,&labels)!=nil{return false};return labels[managedLabel]=="true"}
 func(a *API)stop(w http.ResponseWriter,r *http.Request){id:=r.PathValue("id");if !validID(id)||!managed(r.Context(),id){writeError(w,404,"managed sandbox not found");return};if _,e:=docker(r.Context(),"stop","--time","10",id);e!=nil{writeError(w,502,"sandbox stop failed");return};slog.Info("sandbox stopped","id",id);writeJSON(w,200,map[string]string{"id":id,"status":"stopped"})}
 func(a *API)diagnostics(w http.ResponseWriter,r *http.Request){
  id:=r.PathValue("id")
