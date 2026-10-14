@@ -433,7 +433,7 @@ func powerHyperV(ctx context.Context, id, state string) error {
 }
 
 func snapshotHyperV(ctx context.Context, id, name string) error {
-	_, err := runHyperVPS(ctx, "$ErrorActionPreference='Stop'; $vm=Get-VM -Id '"+id+"'; if ($vm.Name -notlike 'isa-*') { throw 'VM is not managed by this agent' }; Checkpoint-VM -VM $vm -SnapshotName '"+name+"'")
+	_, err := runHyperVPS(ctx, "$ErrorActionPreference='Stop'; $vm=Get-VM -Id '"+id+"'; if ($vm.Name -notlike 'isa-*' -or $vm.Notes -ne '" + managedVMAnnotation + "') { throw 'VM is not managed by this agent' }; Checkpoint-VM -VM $vm -SnapshotName '"+name+"'")
 	return err
 }
 
