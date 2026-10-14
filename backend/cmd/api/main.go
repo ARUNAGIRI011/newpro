@@ -57,7 +57,7 @@ func (a *API) list(w http.ResponseWriter,r *http.Request){
 func (a *API) stop(w http.ResponseWriter,r *http.Request){id:=r.PathValue("id");if !validID(id){writeError(w,400,"invalid ID");return};if _,e:=docker(r.Context(),"stop","--time","10",id);e!=nil{writeError(w,502,e.Error());return};writeJSON(w,200,map[string]string{"id":id,"status":"stopped"})}
 func (a *API) remove(w http.ResponseWriter,r *http.Request){
  id:=r.PathValue("id");if !validID(id){writeError(w,400,"invalid ID");return}
- out,e:=docker(r.Context(),"inspect","--format","{{ index .Config.Labels infra-sandbox-agent.managed }}",id)
+ out,e:=docker(r.Context(),"inspect","--format","{{ index .Config.Labels \"infra-sandbox-agent.managed\" }}",id)
  if e!=nil||strings.TrimSpace(string(out))!="true"{writeError(w,404,"managed sandbox not found");return}
  if _,e=docker(r.Context(),"rm","-f",id);e!=nil{writeError(w,502,e.Error());return};writeJSON(w,200,map[string]string{"id":id,"status":"removed"})
 }
